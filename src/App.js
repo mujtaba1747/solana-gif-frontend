@@ -8,7 +8,7 @@ import {
 import idl from './gifportal.json';
 import kp from './keypair.json'
 
-const { SystemProgram, Keypair } = web3;
+const { SystemProgram } = web3;
 
 // Init a keypair for the account that will hold the GIF data.
 const arr = Object.values(kp._keypair.secretKey)
