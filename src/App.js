@@ -6,11 +6,14 @@ import {
   Program, Provider, web3
 } from '@project-serum/anchor';
 import idl from './gifportal.json';
+import kp from './keypair.json'
 
 const { SystemProgram, Keypair } = web3;
 
-// Create a keypair for the account that will hold the GIF data.
-let baseAccount = Keypair.generate();
+// Init a keypair for the account that will hold the GIF data.
+const arr = Object.values(kp._keypair.secretKey)
+const secret = new Uint8Array(arr)
+const baseAccount = web3.Keypair.fromSecretKey(secret)
 
 // Get our program's id form the IDL file.
 const programID = new PublicKey(idl.metadata.address);
@@ -26,10 +29,10 @@ const opts = {
 // Constants
 const TWITTER_HANDLE = 'mujtaba1747';
 const TWITTER_LINK = `https://twitter.com/${TWITTER_HANDLE}`;
-const TEST_GIFS = [
-  "https://media.giphy.com/media/d6EHXrJlkd8IDIfdtL/giphy.gif",
-  "https://media.giphy.com/media/BPcL0fnVqoBGwfcJxs/giphy.gif",
-];
+// const TEST_GIFS = [
+//   "https://media.giphy.com/media/d6EHXrJlkd8IDIfdtL/giphy.gif",
+//   "https://media.giphy.com/media/BPcL0fnVqoBGwfcJxs/giphy.gif",
+// ];
 
 const App = () => {
   // State
@@ -64,6 +67,27 @@ const App = () => {
     }
   };
 
+  const createGifAccount = async () => {
+    try {
+      const provider = getProvider();
+      const program = new Program(idl, programID, provider);
+      console.log("ping")
+      await program.rpc.startStuffOff({
+        accounts: {
+          baseAccount: baseAccount.publicKey,
+          user: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        },
+        signers: [baseAccount]
+      });
+      console.log("Created a new BaseAccount w/ address:", baseAccount.publicKey.toString())
+      await getGifList();
+  
+    } catch(error) {
+      console.log("Error creating BaseAccount account:", error)
+    }
+  }
+
   const connectWallet = async () => {
     const { solana } = window;
 
@@ -71,6 +95,42 @@ const App = () => {
       const response = await solana.connect();
       console.log('Connected with Public Key:', response.publicKey.toString());
       setWalletAddress(response.publicKey.toString());
+    }
+  };
+
+
+  const renderConnectedContainer = () => {
+    if (gifList === null) {
+      return (
+        <div className="connected-container">
+          <button className="cta-button submit-gif-button" onClick={createGifAccount}>
+            Do One-Time Initialization For GIF Program Account
+          </button>
+        </div>
+      )
+    } else {
+      return(
+        <div className="connected-container">
+          <input
+            type="text"
+            placeholder="Enter gif link!"
+            value={inputValue}
+            onChange={onInputChange}
+          />
+
+          <button className="cta-button submit-gif-button" onClick={sendGif}>
+            Submit
+          </button>
+
+          <div className="gif-grid">
+            {gifList.map(gif => (
+              <div className="gif-item" key={gif}>
+                <img src={gif.gifLink} alt={gif} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )
     }
   };
 
@@ -89,10 +149,25 @@ const App = () => {
   };
 
   const sendGif = async () => {
-    if (inputValue.length > 0) {
-      console.log('Gif link:', inputValue);
-    } else {
-      console.log('Empty input. Try again.');
+    if (inputValue.length === 0) {
+      console.log("No gif link given!")
+      return
+    }
+    console.log('Gif link:', inputValue);
+    try {
+      const provider = getProvider();
+      const program = new Program(idl, programID, provider);
+  
+      await program.rpc.addGif(inputValue, {
+        accounts: {
+          baseAccount: baseAccount.publicKey,
+        },
+      });
+      console.log("GIF sucesfully sent to program", inputValue)
+  
+      await getGifList();
+    } catch (error) {
+      console.log("Error sending GIF:", error)
     }
   };
 
@@ -104,32 +179,6 @@ const App = () => {
     return provider;
   }
   
-  
-
-  const renderConnectedContainer = () => (
-    <div className="connected-container">
-
-      <input
-        type="text"
-        placeholder="Enter gif link!"
-        value={inputValue}
-        onChange={onInputChange}
-      />
-
-      <button className="cta-button submit-gif-button" onClick={sendGif}>
-        Submit
-      </button>
-
-      <div className="gif-grid">
-        {gifList.map(gif => (
-          <div className="gif-item" key={gif}>
-            <img src={gif} alt={gif} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   // UseEffects
   useEffect(() => {
     window.addEventListener('load', async (event) => {
@@ -158,8 +207,8 @@ const App = () => {
       // Call Solana program here.
 
       // Set state
-      getGifList(TEST_GIFS);
-    }
+      getGifList();
+    }// eslint-disable-next-line
   }, [walletAddress]);
 
   return (
